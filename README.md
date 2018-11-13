@@ -1,5 +1,6 @@
 # iOS_interActiveCardView
 
-Sample of interactive card View which can be dragged from the bottom of screen.
+Sample of interactive card View.
+動けるカードビューのサンプル。
 
 ![](interactiveCardView.gif)
