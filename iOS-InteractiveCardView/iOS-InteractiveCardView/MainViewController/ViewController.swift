@@ -18,7 +18,7 @@ final class ViewController: UIViewController {
     private var cardViewController: CardViewController?
     private var visualEffectView: UIVisualEffectView?
     private let cardHeight: CGFloat = 600
-    private let cardHandlerHeight: CGFloat = 65
+    private let cardHandlerHeight: CGFloat = 48
     
     private var cardVisible = false
     private var nextState: CardState {
@@ -29,7 +29,7 @@ final class ViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-  
+        setupCard()
     }
 
 }
@@ -44,8 +44,105 @@ extension ViewController {
         self.addChildViewController(cardViewController!)
         self.view.addSubview((cardViewController?.view)!)
         cardViewController?.view.frame = CGRect(x: 0, y: self.view.frame.height - cardHandlerHeight, width: self.view.bounds.width, height: cardHeight)
+        cardViewController?.view.clipsToBounds = true
+        registerGesture()
         
-        
+    }
+    private func registerGesture() {
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleCardTap(recognizer:)))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleCardPan(recognizer:)))
+        cardViewController?.handleArea.addGestureRecognizer(tap)
+        cardViewController?.handleArea.addGestureRecognizer(pan)
+    }
+    
+    @objc private func handleCardTap(recognizer: UITapGestureRecognizer) {
+        switch recognizer.state {
+        case .ended:
+            animateTransitionIfNeeded(state: nextState, duration: 0.9)
+        default:
+            break
+        }
+    }
+    @objc private func handleCardPan(recognizer: UIPanGestureRecognizer) {
+        switch recognizer.state {
+        case .began:
+            // start transition
+            startInteractiveTransition(state: nextState, duration: 0.9)
+        case .changed:
+            // updateTransition
+            let translation = recognizer.translation(in: self.cardViewController?.handleArea)
+            var fractionComplete = translation.y / cardHeight
+            fractionComplete = cardVisible ? fractionComplete : -fractionComplete
+            updateInteractiveTransition(fractionCompleted: fractionComplete)
+        case .ended:
+            // continue transition
+            continueInteractiveTransition()
+        default:
+            break
+        }
+    }
+    private func animateTransitionIfNeeded(state: CardState, duration: TimeInterval) {
+        if runningAnimations.isEmpty {
+            let frameAnimator = UIViewPropertyAnimator(duration: duration, dampingRatio: 1) {
+                switch state {
+                case .expanded:
+                    // the ctual height or card view in main VC
+                    print("expanded", self.view.frame.height)
+                    self.cardViewController?.view.frame.origin.y = self.view.frame.height - self.cardHeight
+                      print("expanded", self.cardViewController?.view.frame.origin.y)
+                case .collapse:
+                    self.cardViewController?.view.frame.origin.y = self.view.frame.height - self.cardHandlerHeight
+                    print("collapse", self.cardViewController?.view.frame.origin.y)
+                }
+            }
+            frameAnimator.addCompletion { _ in
+                self.cardVisible = !self.cardVisible
+                self.runningAnimations.removeAll()
+            }
+            frameAnimator.startAnimation()
+            runningAnimations.append(frameAnimator)
+            let cornerRadiusAnimator = UIViewPropertyAnimator(duration: duration, curve: .linear) {
+                switch state {
+                case .expanded:
+                    self.cardViewController?.view.layer.cornerRadius = 12.0
+                case .collapse:
+                    self.cardViewController?.view.layer.cornerRadius = 0
+                }
+            }
+            cornerRadiusAnimator.startAnimation()
+            runningAnimations.append(cornerRadiusAnimator)
+            let blurAnimator = UIViewPropertyAnimator(duration: duration, dampingRatio: 1) {
+                switch state {
+                case .expanded:
+                    self.visualEffectView?.effect = UIBlurEffect(style: .dark)
+                case .collapse:
+                    self.visualEffectView?.effect = nil
+                }
+            }
+            blurAnimator.startAnimation()
+            runningAnimations.append(blurAnimator)
+        }
+    }
+    private func startInteractiveTransition(state: CardState, duration: TimeInterval) {
+        if runningAnimations.isEmpty {
+            // run animation
+            animateTransitionIfNeeded(state: state, duration: duration)
+            
+        }
+        for animator in runningAnimations {
+            animator.pauseAnimation()
+            animationProgressWhenInterrupted = animator.fractionComplete
+        }
+    }
+    private func updateInteractiveTransition(fractionCompleted: CGFloat) {
+        for animator in runningAnimations {
+            animator.fractionComplete = fractionCompleted + animationProgressWhenInterrupted
+        }
+    }
+    private func continueInteractiveTransition() {
+        for animator in runningAnimations {
+            animator.continueAnimation(withTimingParameters: nil, durationFactor: 0)
+        }
     }
 }
 
