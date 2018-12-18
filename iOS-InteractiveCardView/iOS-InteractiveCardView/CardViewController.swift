@@ -16,5 +16,4 @@ final class CardViewController: UIViewController {
 
     }
 
-
 }
